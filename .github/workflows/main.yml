@@ -1,5 +1,6 @@
 name: Build Mosdns Domain Lists
-
+permissions:
+  contents: write
 on:
   workflow_dispatch:
   schedule:
