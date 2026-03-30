@@ -1,6 +1,5 @@
 name: Build Mosdns Domain Lists
-permissions:
-  contents: write
+
 on:
   workflow_dispatch:
   schedule:
@@ -9,6 +8,9 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
 
     steps:
       - name: Checkout
@@ -23,11 +25,9 @@ jobs:
         run: |
           wget -O geosite.dat https://raw.githubusercontent.com/Loyalsoldier/v2ray-rules-dat/release/geosite.dat
 
-      - name: Download mosdns
+      - name: Prepare mosdns
         run: |
-          wget -O mosdns.zip https://github.com/IrineSistiana/mosdns/releases/download/v4.5.3/mosdns-linux-amd64.zip
-          unzip mosdns.zip
-          chmod +x mosdns
+          chmod +x tools/mosdns
 
       - name: Prepare output directory
         run: |
@@ -35,29 +35,24 @@ jobs:
 
       - name: Extract domain lists
         run: |
-          # 基础分类
-          ./mosdns v2dat unpack-domain -o ./output geosite.dat:cn
-          ./mosdns v2dat unpack-domain -o ./output geosite.dat:geolocation-!cn
-          ./mosdns v2dat unpack-domain -o ./output geosite.dat:category-ads-all
-
-          # 特殊 dnsmasq-china-list 类
-          ./mosdns v2dat unpack-domain -o ./output geosite.dat:china-list
-          ./mosdns v2dat unpack-domain -o ./output geosite.dat:apple-cn
-          ./mosdns v2dat unpack-domain -o ./output geosite.dat:google-cn
+          ./tools/mosdns v2dat unpack-domain -o ./output geosite.dat:cn
+          ./tools/mosdns v2dat unpack-domain -o ./output geosite.dat:geolocation-!cn
+          ./tools/mosdns v2dat unpack-domain -o ./output geosite.dat:category-ads-all
+          ./tools/mosdns v2dat unpack-domain -o ./output geosite.dat:china-list
+          ./tools/mosdns v2dat unpack-domain -o ./output geosite.dat:apple-cn
+          ./tools/mosdns v2dat unpack-domain -o ./output geosite.dat:google-cn
 
       - name: Show output files
         run: |
           ls -lah output
 
-      - name: Generate tag
-        run: |
-          echo "TAG_NAME=geosite-$(date +%Y%m%d%H%M%S)-${GITHUB_RUN_ID}" >> $GITHUB_ENV
-
-      - name: Create Release and Upload Assets
+      - name: Create/Update Release (latest)
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ env.TAG_NAME }}
-          name: Release ${{ env.TAG_NAME }}
+          tag_name: latest
+          name: Latest Mosdns Domain Lists
+          make_latest: true
+          overwrite: true
           files: |
             output/*
         env:
