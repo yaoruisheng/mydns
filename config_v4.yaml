@@ -2,8 +2,8 @@ log:
   level: info
 
 plugins:
-  # --- 1. 数据源：国内域名列表---
-  - tag: china_domain_set
+  # --- 1. 数据源---
+  - tag: bootstrap_domain_set
     type: domain_set
     args:
       exps:
@@ -21,8 +21,12 @@ plugins:
         - domain:argotunnel.com
         - domain:cftunnel.com
         - domain:cloudflareresearch.com
+
+  - tag: overseas_domain_set
+    type: domain_set
+    args:
       files:
-        - "./geosite_cn.txt"
+        - "./geosite_overseas.txt"
 
   # --- 2. 缓存：乐观缓存 ---
   - tag: main_cache
@@ -32,7 +36,7 @@ plugins:
       lazy_cache_ttl: 259200 # 3天缓存
 
   # --- 3. 国内域名解析 ---
-  - tag: forward_china_udp
+  - tag: mainland_forward_udp
     type: forward
     args:
       concurrent: 2
@@ -44,7 +48,7 @@ plugins:
         - addr: "114.114.114.114"
         - addr: "114.114.115.115"
 
-  - tag: forward_china_dot
+  - tag: mainland_forward_dot
     type: forward
     args:
       concurrent: 2
@@ -54,22 +58,22 @@ plugins:
         - addr: "tls://120.53.53.53"
         - addr: "tls://1.12.12.21"
 
-  - tag: china_dns_with_fallback
+  - tag: mainland_forward_direct
     type: fallback
     args:
-      primary: forward_china_udp
-      secondary: forward_china_dot
+      primary: mainland_forward_udp
+      secondary: mainland_forward_dot
       threshold: 500
 
   # --- 4. DNS IP反向查询 ---
-  - tag: forward_alidns_udp
+  - tag: alidns_forward_udp
     type: forward
     args:
       upstreams:
         - addr: "223.5.5.5"
         - addr: "223.6.6.6"
 
-  - tag: forward_alidns_dot
+  - tag: alidns_forward_dot
     type: forward
     args:
       upstreams:
@@ -79,12 +83,12 @@ plugins:
   - tag: reverse_lookup
     type: fallback
     args:
-      primary: forward_alidns_udp
-      secondary: forward_alidns_dot
+      primary: alidns_forward_udp
+      secondary: alidns_forward_dot
       threshold: 500
 
   # --- 5. Google DoH (通过代理) ---
-  - tag: forward_google_proxy
+  - tag: overseas_forward_proxy
     type: forward
     args:
       concurrent: 3
@@ -139,13 +143,18 @@ plugins:
         exec: $reverse_lookup
       - matches: has_resp
         exec: accept
-      # 3. 分流逻辑
-      - matches: qname $china_domain_set
-        exec: $china_dns_with_fallback
+      # 3. 自举域名优先由境内DNS解析
+      - matches: qname $bootstrap_domain_set
+        exec: $mainland_forward_direct
       - matches: has_resp
         exec: accept
-      # 4. 不匹配则走代理 Google DoH
-      - exec: $forward_google_proxy 
+      # 4. 境外由dns.google doh解析
+      - matches: qname $overseas_domain_set
+        exec: $overseas_forward_proxy
+      - matches: has_resp
+        exec: accept
+      # 5. 默认由境内DNS解析
+      - exec: $mainland_forward_direct 
 
   # --- 7. 服务器入口 ---
 
