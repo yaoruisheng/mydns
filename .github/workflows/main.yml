@@ -36,11 +36,14 @@ jobs:
       - name: Extract domain lists
         run: |
           ./tools/mosdns v2dat unpack-domain -o ./output geosite.dat:cn
-          ./tools/mosdns v2dat unpack-domain -o ./output geosite.dat:geolocation-!cn
+          mkdir -p tmp
+          ./tools/mosdns v2dat unpack-domain -o ./tmp geosite.dat:geolocation-!cn
+          mv ./tmp/*.txt ./output/geosite_overseas.txt
           ./tools/mosdns v2dat unpack-domain -o ./output geosite.dat:category-ads-all
           ./tools/mosdns v2dat unpack-domain -o ./output geosite.dat:china-list
           ./tools/mosdns v2dat unpack-domain -o ./output geosite.dat:apple-cn
           ./tools/mosdns v2dat unpack-domain -o ./output geosite.dat:google-cn
+          rm -rf tmp
 
       - name: Show output files
         run: |
