@@ -55,7 +55,7 @@ jobs:
           tag_name: latest
           name: Latest Mosdns Domain Lists
           make_latest: true
-          overwrite: true
+          overwrite_files: true
           files: |
             output/*
         env:
