@@ -1,0 +1,162 @@
+log:
+  level: info
+
+plugins:
+  # --- 1. 数据源：国内域名列表---
+  - tag: china_domain_set
+    type: domain_set
+    args:
+      exps:
+        - domain:cloudflareclient.com
+        - domain:cloudflareaccess.com
+        - domain:cloudflareportal.com
+        - domain:cloudflareok.com
+        - domain:cloudflarecp.com
+        - domain:msftconnecttest.com
+        - domain:apple.com
+        - domain:gstatic.com
+        - domain:cloudflare-gateway.com
+        - domain:cloudflare-dns.com
+        - domain:cloudflare.com
+        - domain:argotunnel.com
+        - domain:cftunnel.com
+        - domain:cloudflareresearch.com
+      files:
+        - "./geosite_cn.txt"
+
+  # --- 2. 缓存：乐观缓存 ---
+  - tag: main_cache
+    type: cache
+    args:
+      size: 4096
+      lazy_cache_ttl: 259200 # 3天缓存
+
+  # --- 3. 国内域名解析 ---
+  - tag: forward_china_udp
+    type: forward
+    args:
+      concurrent: 2
+      upstreams:
+        - addr: "119.29.29.29"
+        - addr: "119.28.28.28"
+        - addr: "223.5.5.5"
+        - addr: "223.6.6.6"
+        - addr: "114.114.114.114"
+        - addr: "114.114.115.115"
+
+  - tag: forward_china_dot
+    type: forward
+    args:
+      concurrent: 2
+      upstreams:
+        - addr: "tls://223.5.5.5"
+        - addr: "tls://223.6.6.6"
+        - addr: "tls://120.53.53.53"
+        - addr: "tls://1.12.12.21"
+
+  - tag: china_dns_with_fallback
+    type: fallback
+    args:
+      primary: forward_china_udp
+      secondary: forward_china_dot
+      threshold: 500
+
+  # --- 4. DNS IP反向查询 ---
+  - tag: forward_alidns_udp
+    type: forward
+    args:
+      upstreams:
+        - addr: "223.5.5.5"
+        - addr: "223.6.6.6"
+
+  - tag: forward_alidns_dot
+    type: forward
+    args:
+      upstreams:
+        - addr: "tls://223.5.5.5"
+        - addr: "tls://223.6.6.6"
+
+  - tag: reverse_lookup
+    type: fallback
+    args:
+      primary: forward_alidns_udp
+      secondary: forward_alidns_dot
+      threshold: 500
+
+  # --- 5. Google DoH (通过代理) ---
+  - tag: forward_google_proxy
+    type: forward
+    args:
+      concurrent: 3
+      upstreams:
+        - addr: "https://dns.google/dns-query"
+          dial_addr: "8.8.8.8:443"
+          bootstrap: "223.5.5.5"
+          bootstrap_version: 4
+          socks5: "127.0.0.1:40000"
+          enable_pipeline: true
+        - addr: "https://dns.google/dns-query"
+          dial_addr: "8.8.8.8:443"
+          bootstrap: "223.6.6.6"
+          bootstrap_version: 4
+          socks5: "127.0.0.1:40000"
+          enable_pipeline: true
+        - addr: "https://dns.google/dns-query"
+          dial_addr: "8.8.8.8:443"
+          bootstrap: "119.29.29.29"
+          bootstrap_version: 4
+          socks5: "127.0.0.1:40000"
+          enable_pipeline: true
+        - addr: "https://dns.google/dns-query"
+          dial_addr: "8.8.8.8:443"
+          bootstrap: "119.28.28.28"
+          bootstrap_version: 4
+          socks5: "127.0.0.1:40000"
+          enable_pipeline: true
+        - addr: "https://dns.google/dns-query"
+          dial_addr: "8.8.8.8:443"
+          bootstrap: "114.114.114.114"
+          bootstrap_version: 4
+          socks5: "127.0.0.1:40000"
+          enable_pipeline: true
+        - addr: "https://dns.google/dns-query"
+          dial_addr: "8.8.8.8:443"
+          bootstrap: "114.114.115.115"
+          bootstrap_version: 4
+          socks5: "127.0.0.1:40000"
+          enable_pipeline: true
+
+  # --- 6. 核心执行序列 (Sequence) ---
+  - tag: main_sequence
+    type: sequence
+    args:
+      # 1. 查缓存
+      - exec: $main_cache
+      - matches: has_resp
+        exec: accept
+      # 2. 匹配IP反向查询
+      - matches: ptr_ip 127.0.0.0/8 10.0.0.0/8 192.168.0.0/16 172.16.0.0/12 ::1/128 fc00::/7 fe80::/10
+        exec: $reverse_lookup
+      - matches: has_resp
+        exec: accept
+      # 3. 分流逻辑
+      - matches: qname $china_domain_set
+        exec: $china_dns_with_fallback
+      - matches: has_resp
+        exec: accept
+      # 4. 不匹配则走代理 Google DoH
+      - exec: $forward_google_proxy 
+
+  # --- 7. 服务器入口 ---
+
+  - tag: udp_server
+    type: udp_server
+    args:
+      entry: main_sequence
+      listen: ":53"
+
+  - tag: tcp_server
+    type: tcp_server
+    args:
+      entry: main_sequence
+      listen: ":53"
