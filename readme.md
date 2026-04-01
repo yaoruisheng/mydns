@@ -68,7 +68,7 @@ WantedBy=multi-user.target
 编辑：
 
 ``` bash
-sudo nano /etc/systemd/system/warp-svc.service
+sudo nano /lib/systemd/system/warp-svc.service
 ```
 
 在 \[Unit\] 中加入：
