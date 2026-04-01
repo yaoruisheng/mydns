@@ -8,6 +8,10 @@ mosdns service stop
 mosdns service uninstall
 
 # Mosdns readiness service（不修改 mosdns 的正统方案）
+mosdns.service 需要在[unit]下增加以下内容
+DefaultDependencies=no
+After=systemd-sysusers.service
+Before=network-pre.target
 
 ## Step 1：创建 readiness 探测脚本
 
