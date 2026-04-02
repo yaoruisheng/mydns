@@ -77,8 +77,8 @@ plugins:
     type: redirect
     args:
       rules:
-        - domain:in-addr.arpa dns.lan
-        - domain:ip6.arpa dns.lan
+        - domain:in-addr.arpa. dns.lan
+        - domain:ip6.arpa. dns.lan
         - domain:127.in-addr.arpa. localhost
         - full:1.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.ip6.arpa. localhost
 
