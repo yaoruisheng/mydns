@@ -45,7 +45,7 @@ plugins:
       lazy_cache_ttl: 259200
 
   # --- 3. 国内域名解析 ---
-  - tag: mainland_forward_udp
+  - tag: mainland_primary
     type: forward
     args:
       concurrent: 2
@@ -55,7 +55,7 @@ plugins:
         - addr: "2402:4e00::"
         - addr: "2402:4e00:1::"
 
-  - tag: mainland_forward_dot
+  - tag: mainland_secondary
     type: forward
     args:
       concurrent: 1
@@ -63,14 +63,48 @@ plugins:
         - addr: "tls://[2400:3200::1]:853"
         - addr: "tls://[2400:3200:baba::1]:853"
 
-  - tag: mainland_forward_direct
+  - tag: mainland_domain_resolve
     type: fallback
     args:
-      primary: mainland_forward_udp
-      secondary: mainland_forward_dot
+      primary: mainland_primary
+      secondary: mainland_secondary
       threshold: 500
 
-  # --- 4. PTR反向解析 ---
+  # --- 4. 境外域名解析 ---
+  - tag: overseas_primary
+    type: forward
+    args:
+      concurrent: 1
+      upstreams:
+        - addr: "https://doh.wecare.us.to/dns-query"
+          bootstrap: "2400:3200::1"
+          bootstrap_version: 6
+        - addr: "https://doh.wecare.us.to/dns-query"
+          bootstrap: "2400:3200:baba::1"
+          bootstrap_version: 6
+
+  - tag: overseas_secondary
+    type: forward
+    args:
+      concurrent: 1
+      upstreams:
+        - addr: "https://dns.quad9.net/dns-query"
+          dial_addr: "2620:fe::9"
+          bootstrap: "2400:3200::1"
+          bootstrap_version: 6
+        - addr: "https://dns.quad9.net/dns-query"
+          dial_addr: "2620:fe::fe"
+          bootstrap: "2400:3200:baba::1"
+          bootstrap_version: 6
+
+  - tag: overseas_domain_resolve
+    type: fallback
+    args:
+      primary: overseas_primary
+      secondary: overseas_secondary
+      threshold: 3000
+
+  # --- 5. PTR反向解析 ---
   - tag: redirect_to_local_ptr
     type: redirect
     args:
@@ -93,19 +127,6 @@ plugins:
       - exec: $redirect_to_local_ptr
       - exec: $static_ptr_answer
 
-  # --- 5. Google DoH (通过代理) ---
-  - tag: overseas_forward_proxy
-    type: forward
-    args:
-      concurrent: 2
-      upstreams:
-        - addr: "https://doh.wecare.us.to/dns-query"
-          bootstrap: "2400:3200::1"
-          bootstrap_version: 6
-        - addr: "https://doh.wecare.us.to/dns-query"
-          bootstrap: "2400:3200:baba::1"
-          bootstrap_version: 6
-
   # --- 6. 核心执行序列 (Sequence) ---
   - tag: main_sequence
     type: sequence
@@ -119,23 +140,23 @@ plugins:
         exec: $ptr_handler_sequence
       - matches: has_resp
         exec: accept
-      # 6.3 匹配广告域名  
+      # 6.3 过滤广告域名  
       - matches: qname $ads_domain_set
         exec: black_hole 127.0.0.1 ::1 0.0.0.0
       - matches: has_resp
         exec: accept
-      # 6.4 自举域名优先由境内DNS解析
+      # 6.4 自举域名解析
       - matches: qname $mainland_domain_set
-        exec: $mainland_forward_direct
+        exec: $mainland_domain_resolve
       - matches: has_resp
         exec: accept
-      # 6.5 境外由dns.google doh解析
+      # 6.5 境外域名解析
       - matches: qname $overseas_domain_set
-        exec: $overseas_forward_proxy
+        exec: $overseas_domain_resolve
       - matches: has_resp
         exec: accept
       # 6.6 默认由境内DNS解析
-      - exec: $mainland_forward_direct 
+      - exec: $mainland_domain_resolve 
 
   # --- 7. 服务器入口 ---
 
