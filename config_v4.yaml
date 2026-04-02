@@ -99,20 +99,15 @@ plugins:
   - tag: overseas_forward_proxy
     type: forward
     args:
-      concurrent: 1
+      concurrent: 2
       upstreams:
-        - addr: "https://dns.google/dns-query"
-          dial_addr: "8.8.8.8:443"
+        - addr: "https://doh.wecare.us.to/dns-query"
           bootstrap: "223.5.5.5"
           bootstrap_version: 4
-          socks5: "127.0.0.1:40000"
-          enable_pipeline: true
-        - addr: "https://dns.google/dns-query"
-          dial_addr: "8.8.8.8:443"
+        - addr: "https://doh.wecare.us.to/dns-query"
           bootstrap: "223.6.6.6"
           bootstrap_version: 4
-          socks5: "127.0.0.1:40000"
-          enable_pipeline: true
+
 
   # --- 6. 核心执行序列 (Sequence) ---
   - tag: main_sequence
