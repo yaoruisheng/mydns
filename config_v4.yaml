@@ -31,18 +31,18 @@ plugins:
       files:
         - "./geosite_overseas.txt"
 
-  #- tag: ads_domain_set
-  #  type: domain_set
-  #  args:
-  #    files:
-  #      - "./geosite_category-ads-all.txt"
+  - tag: ads_domain_set
+    type: domain_set
+    args:
+      files:
+        - "./geosite_category-ads-all.txt"
 
   # --- 2. 缓存：乐观缓存 ---
   - tag: main_cache
     type: cache
     args:
       size: 4096
-      lazy_cache_ttl: 259200 # 3天缓存
+      lazy_cache_ttl: 259200
 
   # --- 3. 国内域名解析 ---
   - tag: mainland_forward_udp
@@ -60,12 +60,10 @@ plugins:
   - tag: mainland_forward_dot
     type: forward
     args:
-      concurrent: 2
+      concurrent: 1
       upstreams:
         - addr: "tls://223.5.5.5:853"
         - addr: "tls://223.6.6.6:853"
-        - addr: "tls://120.53.53.53:853"
-        - addr: "tls://1.12.12.21:853"
 
   - tag: mainland_forward_direct
     type: fallback
@@ -74,33 +72,34 @@ plugins:
       secondary: mainland_forward_dot
       threshold: 500
 
-  # --- 4. DNS IP反向查询 ---
-  - tag: alidns_forward_udp
-    type: forward
+  # --- 4. PTR反向解析 ---
+  - tag: redirect_to_local_ptr
+    type: redirect
     args:
-      upstreams:
-        - addr: "223.5.5.5"
-        - addr: "223.6.6.6"
+      rules:
+        - domain:in-addr.arpa dns.lan
+        - domain:ip6.arpa dns.lan
+        - domain:127.in-addr.arpa. localhost
+        - full:1.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.ip6.arpa. localhost
 
-  - tag: alidns_forward_dot
-    type: forward
+  - tag: static_ptr_answer
+    type: arbitrary
     args:
-      upstreams:
-        - addr: "tls://223.5.5.5:853"
-        - addr: "tls://223.6.6.6:853"
+      rules:
+        - 'localhost. 86400 IN PTR localhost.'
+        - 'dns.lan. 86400 IN PTR \206\210\176\174\196\227.' #无聊显示为”我爱你”
 
-  - tag: reverse_lookup
-    type: fallback
+  - tag: ptr_handler_sequence
+    type: sequence
     args:
-      primary: alidns_forward_udp
-      secondary: alidns_forward_dot
-      threshold: 500
+      - exec: $redirect_to_local_ptr
+      - exec: $static_ptr_answer
 
   # --- 5. Google DoH (通过代理) ---
   - tag: overseas_forward_proxy
     type: forward
     args:
-      #concurrent: 3
+      concurrent: 1
       upstreams:
         - addr: "https://dns.google/dns-query"
           dial_addr: "8.8.8.8:443"
@@ -114,66 +113,6 @@ plugins:
           bootstrap_version: 4
           socks5: "127.0.0.1:40000"
           enable_pipeline: true
-        #- addr: "https://dns.google/dns-query"
-        #  dial_addr: "8.8.8.8:443"
-        #  bootstrap: "119.29.29.29"
-        #  bootstrap_version: 4
-        #  socks5: "127.0.0.1:40000"
-        #  enable_pipeline: true
-        #- addr: "https://dns.google/dns-query"
-        #  dial_addr: "8.8.8.8:443"
-        #  bootstrap: "119.28.28.28"
-        #  bootstrap_version: 4
-        #  socks5: "127.0.0.1:40000"
-        #  enable_pipeline: true
-        #- addr: "https://dns.google/dns-query"
-        #  dial_addr: "8.8.8.8:443"
-        #  bootstrap: "114.114.114.114"
-        #  bootstrap_version: 4
-        #  socks5: "127.0.0.1:40000"
-        #  enable_pipeline: true
-        #- addr: "https://dns.google/dns-query"
-        #  dial_addr: "8.8.8.8:443"
-        #  bootstrap: "114.114.115.115"
-        #  bootstrap_version: 4
-        #  socks5: "127.0.0.1:40000"
-        #  enable_pipeline: true
-        #- addr: "https://dns.google/dns-query"
-        #  dial_addr: "8.8.4.4:443"
-        #  bootstrap: "223.5.5.5"
-        #  bootstrap_version: 4
-        #  socks5: "127.0.0.1:40000"
-        #  enable_pipeline: true
-        #- addr: "https://dns.google/dns-query"
-        #  dial_addr: "8.8.4.4:443"
-        #  bootstrap: "223.6.6.6"
-        #  bootstrap_version: 4
-        #  socks5: "127.0.0.1:40000"
-        #  enable_pipeline: true
-        #- addr: "https://dns.google/dns-query"
-        #  dial_addr: "8.8.4.4:443"
-        #  bootstrap: "119.29.29.29"
-        #  bootstrap_version: 4
-        #  socks5: "127.0.0.1:40000"
-        #  enable_pipeline: true
-        #- addr: "https://dns.google/dns-query"
-        #  dial_addr: "8.8.4.4:443"
-        #  bootstrap: "119.28.28.28"
-        #  bootstrap_version: 4
-        #  socks5: "127.0.0.1:40000"
-        #  enable_pipeline: true
-        #- addr: "https://dns.google/dns-query"
-        #  dial_addr: "8.8.4.4:443"
-        #  bootstrap: "114.114.114.114"
-        #  bootstrap_version: 4
-        #  socks5: "127.0.0.1:40000"
-        #  enable_pipeline: true
-        #- addr: "https://dns.google/dns-query"
-        #  dial_addr: "8.8.4.4:443"
-        #  bootstrap: "114.114.115.115"
-        #  bootstrap_version: 4
-        #  socks5: "127.0.0.1:40000"
-        #  enable_pipeline: true
 
   # --- 6. 核心执行序列 (Sequence) ---
   - tag: main_sequence
@@ -185,14 +124,14 @@ plugins:
         exec: accept
       # 6.2 匹配IP反向查询
       - matches: ptr_ip 127.0.0.0/8 10.0.0.0/8 192.168.0.0/16 172.16.0.0/12 ::1/128 fc00::/7 fe80::/10
-        exec: $reverse_lookup
+        exec: $ptr_handler_sequence
       - matches: has_resp
         exec: accept
       # 6.3 匹配广告域名  
-      #- matches: qname $ads_domain_set
-      #  exec: black_hole 127.0.0.1 ::1 0.0.0.0
-      #- matches: has_resp
-      #  exec: accept
+      - matches: qname $ads_domain_set
+        exec: black_hole 127.0.0.1 ::1 0.0.0.0
+      - matches: has_resp
+        exec: accept
       # 6.4 自举域名优先由境内DNS解析
       - matches: qname $mainland_domain_set
         exec: $mainland_forward_direct
